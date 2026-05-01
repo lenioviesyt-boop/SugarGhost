@@ -271,15 +271,23 @@
             toggleDangerMode(false);
         }
 
-        function setUnit(u) {
-            currentUnit = u;
-            const isF = u === 'food';
-            document.getElementById('toggleFood').className = `flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${isF ? 'bg-slate-900 text-white' : 'text-slate-400'}`;
-            document.getElementById('toggleDrink').className = `flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${!isF ? 'bg-slate-900 text-white' : 'text-slate-400'}`;
-            document.getElementById('labelSugar').innerText = isF ? 'Cukier / 100g' : 'Cukier / 100ml';
-            document.getElementById('labelWeight').innerText = isF ? 'Waga produktu (g)' : 'Pojemność (ml)';
-            renderQuickButtons();
-        }
+function setUnit(u) {
+    currentUnit = u;
+    const isF = u === 'food';
+    
+    // Zmiana stylów przycisków
+    document.getElementById('toggleFood').className = `flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${isF ? 'bg-slate-900 text-white' : 'text-slate-400'}`;
+    document.getElementById('toggleDrink').className = `flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${!isF ? 'bg-slate-900 text-white' : 'text-slate-400'}`;
+    
+    // Zmiana napisów nad polami
+    document.getElementById('labelSugar').innerText = isF ? 'Cukier / 100g' : 'Cukier / 100ml';
+    document.getElementById('labelWeight').innerText = isF ? 'Waga produktu (g)' : 'Pojemność (ml)';
+    
+    // TA LINIA JEST NOWA: Zmiana przykładów w polu nazwy
+    document.getElementById('prodName').placeholder = isF ? 'np. Baton, Jogurt' : 'np. Sok, Cola, Energetyk';
+    
+    renderQuickButtons();
+}
 
         // --- SKANER I API ---
         async function startScanner() {
