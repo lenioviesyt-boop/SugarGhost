@@ -40,8 +40,8 @@
         <!-- LOGO -->
         <header class="text-center mb-8">
             <div onclick="location.reload()" class="cursor-pointer inline-block transform transition-all hover:scale-105 active:scale-95 group" role="button">
-                <h1 class="text-6xl tracking-tighter leading-none">
-                    <span class="font-extrabold text-slate-800">Sugar</span><span class="font-black text-red-600">Ghost</span>
+                <h1 class="text-6xl font-black tracking-tighter leading-none">
+                    <span class="text-slate-800">Sugar</span><span class="text-red-600">Ghost</span>
                 </h1>
                 <p class="text-[9px] font-bold uppercase tracking-[0.4em] text-slate-400 mt-2 transition-colors group-hover:text-red-500 text-center">
                     Laboratoryjny Skaner Składu
@@ -135,8 +135,8 @@
                     <div class="bg-black/5 p-4 rounded-2xl"><div class="text-2xl">🏃</div><div id="runVal" class="text-lg font-black text-inherit">0 min</div><div class="text-[8px] font-bold uppercase opacity-50 text-inherit text-center">Biegu</div></div>
                 </div>
 
-                <button onclick="generateSocialImage()" class="w-full py-4 border-2 border-slate-900 text-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all">
-                    Generuj Stories PNG 📲
+                <button id="shareBtn" onclick="generateSocialImage()" class="w-full py-4 border-2 border-slate-900 text-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all">
+                    Udostępnij Raport 📲
                 </button>
             </div>
         </section>
@@ -151,7 +151,7 @@
         </section>
 
         <footer class="text-center text-[10px] font-black uppercase tracking-widest opacity-30 py-10">
-            Sugar Ghost &bull; 2026 &bull; System Laboratoryjny 5.4
+            Sugar Ghost &bull; 2026 &bull; System Laboratoryjny 5.5
         </footer>
     </div>
 
@@ -183,7 +183,7 @@
             const weights = currentUnit === 'food' ? [100, 150, 400] : [250, 330, 500];
             const suffix = currentUnit === 'food' ? 'g' : 'ml';
             container.innerHTML = weights.map(w => `
-                <button onclick="setWeight(${w})" class="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase shadow-md hover:shadow-xl transition-all active:scale-95">${w}${suffix}</button>
+                <button onclick="setWeight(${w})" class="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase shadow-md transition-all active:scale-95">${w}${suffix}</button>
             `).join('');
         }
 
@@ -329,9 +329,9 @@
         }
 
         /**
-         * POPRAWIONY CANVAS 9:16 (Stories) - USUNIĘTO STOPKĘ/CTA
+         * ZAKTUALIZOWANY CANVAS Z OBSŁUGĄ WEB SHARE API I BEZPIECZNYMI FONTAMI
          */
-        function generateSocialImage() {
+        async function generateSocialImage() {
             const canvas = document.getElementById('shareCanvas');
             const ctx = canvas.getContext('2d');
             const name = document.getElementById('resName').innerText;
@@ -339,46 +339,76 @@
             const emoji = document.getElementById('ghostEmoji').innerText;
             const kcal = document.getElementById('sugarKcal').innerText;
             const isD = document.body.classList.contains('danger-bg');
+            const shareBtn = document.getElementById('shareBtn');
 
+            shareBtn.innerText = "PRZYGOTOWUJĘ... ⏳";
+
+            // Tło 9:16 - Rysowanie
             const grd = ctx.createLinearGradient(0, 0, 0, 1920);
             if(isD) { grd.addColorStop(0, '#450a0a'); grd.addColorStop(1, '#000000'); } 
             else { grd.addColorStop(0, '#f8fafc'); grd.addColorStop(1, '#e2e8f0'); }
             ctx.fillStyle = grd;
             ctx.fillRect(0, 0, 1080, 1920);
 
+            // Obramowanie
             ctx.strokeStyle = isD ? '#ef4444' : '#0f172a';
             ctx.lineWidth = 40;
             ctx.strokeRect(20, 20, 1040, 1880);
 
+            // Nagłówek - System font fallback
             ctx.fillStyle = isD ? '#ef4444' : '#1e293b';
-            ctx.font = '800 50px Plus Jakarta Sans, sans-serif';
+            ctx.font = '800 50px sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('RAPORT SUGAR GHOST', 540, 350);
 
+            // Duch
             ctx.font = '500px serif';
             ctx.fillText(emoji, 540, 850);
 
+            // Nazwa Produktu
             ctx.fillStyle = isD ? '#ffffff' : '#0f172a';
-            ctx.font = 'bold 80px Plus Jakarta Sans, sans-serif';
+            ctx.font = 'bold 80px sans-serif';
             ctx.fillText(name.toUpperCase(), 540, 1100);
 
-            ctx.font = '900 350px Plus Jakarta Sans, sans-serif';
+            // Gramy
+            ctx.font = '900 350px sans-serif';
             ctx.fillStyle = '#ef4444';
             ctx.fillText(grams, 540, 1450);
 
-            ctx.font = 'bold 60px Plus Jakarta Sans, sans-serif';
+            // Podpis gramów
+            ctx.font = 'bold 60px sans-serif';
             ctx.fillStyle = isD ? '#fee2e2' : '#64748b';
             ctx.fillText('CUKRU W PORCJI', 540, 1550);
 
-            ctx.font = '50px Plus Jakarta Sans, sans-serif';
+            // Kalorie
+            ctx.font = '50px sans-serif';
             ctx.fillText(kcal, 540, 1650);
 
-            // SEKACJA STOPKI / CTA ZOSTAŁA USUNIĘTA ZGODNIE Z PROŚBĄ
+            // KONWERSJA NA BLOB I UDOSTĘPNIANIE
+            canvas.toBlob(async (blob) => {
+                if (!blob) return;
+                const file = new File([blob], `SugarGhost_${name}.png`, { type: 'image/png' });
 
-            const link = document.createElement('a');
-            link.download = `SugarGhost_${name}_Stories.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
+                // Sprawdzenie Web Share API
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: 'Raport Sugar Ghost',
+                            text: `Spójrz ile cukru ma ${name}! Prześwietlone przez Sugar Ghost 👻`
+                        });
+                    } catch (err) {
+                        console.log("Anulowano udostępnianie");
+                    }
+                } else {
+                    // Fallback dla komputerów (pobieranie)
+                    const link = document.createElement('a');
+                    link.download = `SugarGhost_${name}.png`;
+                    link.href = URL.createObjectURL(blob);
+                    link.click();
+                }
+                shareBtn.innerText = "Udostępnij Raport 📲";
+            }, 'image/png');
         }
 
         function renderIcons(id, em, count) {
