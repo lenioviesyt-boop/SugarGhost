@@ -211,6 +211,8 @@
         };
 
         let currentUnit = 'food';
+        
+        // POPRAWKA: Przeniesienie instancji skanera do zakresu globalnego
         let html5QrCode = null;
 
         const comments = {
@@ -222,21 +224,35 @@
         // --- OPTYMALIZOWANY SKANER EAN ---
         async function startScanner() {
             const btn = document.getElementById('startCamBtn');
-            if (html5QrCode && html5QrCode.getState() === 2) {
-                await html5QrCode.stop();
-                btn.innerText = "URUCHOM APARAT 📷";
+            
+            // POPRAWKA: Bezpieczne sprawdzanie stanu za pomocą enuma i wyłączenie z czyszczeniem
+            if (html5QrCode && html5QrCode.getState() === Html5QrcodeScannerState.SCANNING) {
+                try {
+                    await html5QrCode.stop();
+                    html5QrCode.clear(); // POPRAWKA: Czyści podgląd z ekranu po zatrzymaniu
+                } catch(e) { console.error("Błąd zatrzymywania kamery:", e); }
+                
+                btn.innerHTML = "<span>URUCHOM APARAT</span> 📷";
+                document.getElementById('apiStatus').innerText = "Gotowy";
                 return;
             }
+
             btn.innerText = "INICJALIZACJA...";
             
-            // Konfiguracja TYLKO pod formaty EAN
-            html5QrCode = new Html5Qrcode("reader", {
-                formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8 ]
-            });
+            // POPRAWKA: Tworzymy instancję tylko raz, zapobiegając wyciekom pamięci
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader", {
+                    formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8 ]
+                });
+            }
 
             const config = {
-                fps: 20,
-                qrbox: { width: 300, height: 150 },
+                fps: 10, // POPRAWKA: 10 klatek to optymalna wartość dla wydajności na mobile
+                qrbox: (videoWidth, videoHeight) => {
+                    // POPRAWKA: Dynamiczny rozmiar wizjera dostosowany do wielkości ekranu
+                    const qrSize = Math.min(videoWidth * 0.8, 300);
+                    return { width: qrSize, height: qrSize * 0.5 };
+                },
                 rememberLastUsedCamera: true,
                 aspectRatio: 1.777778
             };
@@ -246,16 +262,35 @@
                     { facingMode: "environment" }, 
                     config, 
                     onScanSuccess,
-                    (err) => { console.log("Skanowanie...", err); }
+                    (err) => { 
+                        // POPRAWKA: Pusty callback wycisza spam w konsoli (20 błędów/s), co ratuje wydajność
+                    }
                 );
                 btn.innerText = "STOP APARAT ❌";
                 document.getElementById('apiStatus').innerText = "Szukam kodu EAN...";
-            } catch (err) { showError("Błąd aparatu."); btn.innerText = "URUCHOM APARAT 📷"; }
+            } catch (err) { 
+                // POPRAWKA: Lepsza obsługa błędów braku uprawnień
+                if (err && typeof err === 'string' && err.includes("NotAllowedError")) {
+                    showError("Brak uprawnień do użycia kamery!"); 
+                } else {
+                    showError("Błąd aparatu. Spróbuj innej przeglądarki."); 
+                }
+                btn.innerHTML = "<span>URUCHOM APARAT</span> 📷"; 
+            }
         }
 
         async function onScanSuccess(decodedText) {
-            if (html5QrCode) await html5QrCode.stop();
-            document.getElementById('startCamBtn').innerText = "URUCHOM APARAT 📷";
+            // POPRAWKA: Bezpieczne blokowanie kamery w try-catch aby błąd nie zablokował wywołania API
+            if (html5QrCode && html5QrCode.getState() === Html5QrcodeScannerState.SCANNING) {
+                try {
+                    await html5QrCode.stop();
+                    html5QrCode.clear();
+                } catch(e) {
+                    console.log("Ignorowany błąd przy stop po sukcesie:", e);
+                }
+            }
+            
+            document.getElementById('startCamBtn').innerHTML = "<span>URUCHOM APARAT</span> 📷";
             document.getElementById('apiStatus').innerText = "Szukam w bazie...";
             
             try {
@@ -274,7 +309,7 @@
                 document.getElementById('totalWeight').value = weight;
                 document.getElementById('apiStatus').innerText = "Znaleziono!";
                 initScan();
-            } catch (err) { showError("Produkt nieznany."); }
+            } catch (err) { showError("Produkt nieznany."); document.getElementById('apiStatus').innerText = "Błąd wyszukiwania"; }
         }
 
         function setWeight(v) { document.getElementById('totalWeight').value = v; resetUI(); }
@@ -289,23 +324,21 @@
         }
 
         function setUnit(u) {
-    currentUnit = u;
-    const isF = u === 'food';
-    const prodNameInput = document.getElementById('prodName');
+            currentUnit = u;
+            const isF = u === 'food';
+            const prodNameInput = document.getElementById('prodName');
 
-    // Aktualizacja klas przycisków
-    document.getElementById('toggleFood').className = `flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${isF ? 'bg-slate-900 text-white' : 'text-slate-400'}`;
-    document.getElementById('toggleDrink').className = `flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${!isF ? 'bg-slate-900 text-white' : 'text-slate-400'}`;
+            document.getElementById('toggleFood').className = `flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${isF ? 'bg-slate-900 text-white' : 'text-slate-400'}`;
+            document.getElementById('toggleDrink').className = `flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${!isF ? 'bg-slate-900 text-white' : 'text-slate-400'}`;
 
-    // Aktualizacja etykiet
-    document.getElementById('labelSugar').innerText = isF ? 'Cukier / 100g' : 'Cukier / 100ml';
-    document.getElementById('labelWeight').innerText = isF ? 'Waga produktu (g)' : 'Pojemność (ml)';
+            document.getElementById('labelSugar').innerText = isF ? 'Cukier / 100g' : 'Cukier / 100ml';
+            document.getElementById('labelWeight').innerText = isF ? 'Waga produktu (g)' : 'Pojemność (ml)';
 
-    // DYNAMICZNY PLACEHOLDER
-    prodNameInput.placeholder = isF ? "np. Baton, Jogurt, Ciastko" : "np. Sok, Cola, Energetyk";
+            prodNameInput.placeholder = isF ? "np. Baton, Jogurt, Ciastko" : "np. Sok, Cola, Energetyk";
 
-    renderQuickButtons();
-}
+            renderQuickButtons();
+        }
+
         function resetUI() { document.getElementById('results').classList.add('hidden'); toggleDangerMode(false); }
 
         function initScan() {
@@ -424,6 +457,7 @@
         function togglePrivacyModal() { document.getElementById('privacyModal').classList.toggle('hidden'); }
         function acceptCookies() { localStorage.setItem('sugarGhost_cookieConsent', 'true'); document.getElementById('cookieBanner').classList.add('hidden'); }
         window.onload = function() { if (!localStorage.getItem('sugarGhost_cookieConsent')) document.getElementById('cookieBanner').classList.remove('hidden'); }
+        
         function renderIcons(id, em, count) {
             const container = document.getElementById(id); container.innerHTML = '';
             for(let i=0; i<Math.min(count, CONFIG.MAX_ICONS); i++) {
